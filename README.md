@@ -1,0 +1,93 @@
+# Log4Db
+
+An unoptmized implementation of logging in a database.
+
+## DOCUMENTATION
+
+To log something (basic):
+```sql
+create procedure ExampleProcedure as begin
+    Logging.Debug(@ObjectName = 'ExampleProcedure', @Message = 'My log message.')
+end
+```
+
+For better performance:
+```sql
+create procedure ExampleProcedure as begin
+    declare @MyId Int = object_id ('ExampleProcedure')
+	  
+    if (Logging.IsDebugEnabled(@MyId) begin
+        Logging.Debug(@ObjectId = @MyId, @Message = 'My log message.')
+    end
+end
+```
+
+For better detail:
+```sql
+create procedure ExampleProcedure as begin
+    begin try
+        -- do stuff
+    end try
+    begin catch
+        Logging.Error(@ObjectName = 'ExampleProcedure', @UseError = 1)
+    end catch
+end
+```
+
+Best practice (with multiple statements):
+```sql
+create procedure ExampleProcedure as begin
+    set nocount on;
+    declare @transactioncount int = @@trancount;
+    declare @MyId int = object_id ('ExampleProcedure')
+
+    begin try
+        if @transactioncount = 0
+            begin transaction
+        else
+            save transaction ExampleProcedure
+
+        -- Do the actual work here
+        if (Logging.IsDebugEnabled(@MyId)) Logging.Debug (@ObjectId = @MyId, @Message = 'This is a debug message.')
+        -- End of actual work
+
+        if @transactioncount = 0
+            commit;
+        end try
+        begin catch
+            declare @xstate int = xact_state()
+        declare @message varchar(255)
+
+        if @xstate = -1 begin
+            rollback
+            @message = 'Entire transaction rolled back.'
+        end
+
+        if @xstate = 1 and @transactioncount = 0 begin
+            rollback
+            @message = 'Entire transaction rolled back.'
+        end
+
+        if @xstate = 1 and @transactioncount . 0 begin
+            rollback transaction ExampleProcedure
+            @message = 'Transaction for script rolled back.'
+        end
+
+        if (Logging.IsErrorEnabled(@MyId)) Logging.Error(@ObjectId = @MyId, @UseError = 1)
+
+    end catch
+end
+```
+
+## To set the logging level for an object:
+
+Call the `SetLoggingLevelForObject.sql` stored procedure. Alternatively, you can modify the contents of the `[LogSettings]` table directly.
+You do not have to specifically set the logging level for every object. When you log for an object for the first time, if no
+setting exists, the setting for that object will be set to 'INHERIT'.
+
+## To add new logging levels:
+
+1. Modify `__GetLevelValue.sql` to include your new level. Your new level is limited to 13 characters.
+   - Adjust the other levels accordingly. A lower number is more detailed (and therefore less important) logging.
+2. Optional: Create an `Is<foo>Enabled.sql` function. You can use any of the existing functions as an example.
+3. Optional: Create a `<foo>` stored procedure. You can use any of the existing stored procedures as an example.
